@@ -21,64 +21,143 @@
 #include <pthread.h>
 #include <errno.h>
 #include <string.h>
- 
-#define STARTING_SIZE       50
+#include <stdbool.h>
 
-int num = 0;
+#define wordLength 6
+ 
+int size = 20000;
+int x = 0;
+int numberOfEntries = 0;
+int filePerThread;
+int threadCount;
+char * buffer;
+pthread_mutex_t mutex;
+
+int startPoint = 0;
 
 typedef struct Node{
     char * item;
     int count;
 } Node;
 
-// typedef struct ArrayD {
-//     struct Node items[STARTING_SIZE];
-// } ArrayD;
-
 // You may find this Useful
 char * delim = "\"\'.“”‘’?:;-,—*($%)! \t\n\x0A\r";
 
-int insert(char * element, Node array[]){
 
-    printf("num = %d\n", num);
+int pivotFinder(Node * array, int start, int end){
+    int pivot = array[end].count;
+    int  i = start-1;
 
-    if(num == 0){
+    for(int k = start; k < end; k++){ 
+        if(array[k].count >= pivot){
+            i++;
+            Node temp = array[i];
+            array[i] = array[k]; 
+            array[k] = temp; 
+        }
+    }
+
+    Node temp1 = array[i+1];
+    array[i+1] = array[end];
+    array[end] = temp1;
+
+    return (i+1);
+}
+
+void quickSort(Node * array, int start, int end){
+    if(start < end){
+        int pivot = pivotFinder(array, start, end);
+        quickSort(array, start, pivot-1);
+        quickSort(array, pivot+1, end);
+    }
+}
+
+
+void * fileParser(void * array){
+
+    Node * words = (Node *)array;  
+
+    // filePerThread = fileSize/threadCount;
+
+    char *startingPoint = buffer;
+
+    char * buffer1 = calloc(filePerThread, sizeof(char));
+
+
+    if(pthread_mutex_lock(&mutex)){
+        perror("Mutex lock!");
+    }
+
+    startingPoint = startingPoint + x*filePerThread;
+    memcpy(buffer1, startingPoint, filePerThread);
+    x++;
+
+    if(pthread_mutex_unlock(&mutex)){
+        perror("Mutex unlock!");
+    }
+
+    char * ptr = NULL;
+
+    char * token = strtok_r(buffer1, delim, &ptr);
+    
+    bool result = 0;
+   
+    while(token != NULL){
+
+        result = 0;
+
+        if(strlen(token) < wordLength){
+            token = strtok_r(NULL, delim, &ptr);
+            continue;
+        }
+
+        if(numberOfEntries == size){ 
+            if(pthread_mutex_lock(&mutex)){
+                perror("Mutex lock!");
+            }
+            words = (Node *) realloc(words, sizeof(Node)*2*size);
+            size = size*2;
+            if(pthread_mutex_unlock(&mutex)){
+                perror("Mutex unlock!");
+            }
+        }
+
+        for(int i = 0; i < numberOfEntries; i++){ 
+            if(words[i].item != NULL && strcasecmp(words[i].item, token) == 0){
+                if(pthread_mutex_lock(&mutex)){
+                    perror("Mutex lock!");
+                }
+                words[i].count += 1; 
+                if(pthread_mutex_unlock(&mutex)){
+                    perror("Mutex unlock!");
+                }
+                result = 1;      
+                break;
+            }
+            
+        }
+
+        if(result == 1){
+            token = strtok_r(NULL, delim, &ptr);
+            continue;
+        }
+        
+        
+        if(pthread_mutex_lock(&mutex)){
+            perror("Mutex lock!");
+        }
         struct Node node;
-        node.item = element;
+        node.item = token;
         node.count = 1;
-        array[num] = node;
-        num++;
-        for(int j = 0; j < num+1; j++){
-            printf("%d: %s  ", j, array[j].item);
-            printf("%d\n", array[j].count);
+        words[numberOfEntries] = node;    
+        numberOfEntries++;                
+
+        if(pthread_mutex_unlock(&mutex)){
+            perror("Mutex unlock!");
         }
-        return 0;
-    }
-
-
-    for(int i = 0; i < num; i++){
-        if(strcmp(array[i].item, element) == 0){
-            array[i].count++;
-            return 0;
-        }
-    }
-
-    struct Node node;
-    node.item = element;
-    node.count = 1;
-    array[num] = node;
-    num++;
-
-
-    for(int j = 0; j < num; j++){
-        printf("%d: %s  ", j, array[j].item);
-        printf("%d\n", array[j].count);
-    }
-
-    
-    
-    return 0;
-
+        
+        token = strtok_r(NULL, delim, &ptr);
+    } 
 }
 
 int main (int argc, char *argv[])
@@ -92,52 +171,33 @@ int main (int argc, char *argv[])
     }
 
     char * path = argv[1];
-    //atoi()
-    int threadCount = argv[2];
 
-    // for(int i = 0; i < threadCount; i++){
-    //     pthread_create();
-    // }
-    // for(int i = 0; i < threadCount; i++){
-    //     pthread_join();
-    // }
-    
+    //Converts a string to an integer
+    threadCount = atoi(argv[2]);
+
     int fd = open(path, O_RDONLY);
 
     int fileSize = lseek(fd, 0, SEEK_END);
-    printf("%d\n", fileSize);
 
     if(fileSize == -1){
         perror("errno");
         exit(1);
     }
 
-    char * buffer = malloc(fileSize);
+    buffer = calloc(fileSize, sizeof(char));
+
 
     ssize_t bytesRead = pread(fd, buffer, fileSize, 0);
     if(bytesRead == -1){
         perror("Error: ");
     }    
 
+    filePerThread = fileSize/threadCount;
+
     close(fd);
+    void * res;
 
-    struct Node words[STARTING_SIZE];
-    insert("hello", words);
-    insert("hello", words);
-    // insert("hello", words);
-
-    insert("world", words);
-    insert("yes", words);
-    insert("haha", words);
-    insert("lmao", words);
-    insert("yes", words);
-    insert("bitch", words);
-
-    //printf("Bytes Read: %ld\n Buffer:\n%s\n",bytesRead, buffer);
-
-
-
-
+    struct Node * words = calloc(size,sizeof(Node));
 
     //**************************************************************
     // DO NOT CHANGE THIS BLOCK
@@ -150,8 +210,27 @@ int main (int argc, char *argv[])
     // *** TO DO ***  start your thread processing
     //                wait for the threads to finish
 
+    pthread_t tid[threadCount];
+
+    for(int i = 0; i < threadCount; i++){
+        pthread_create(&tid[i], NULL, fileParser, words);
+        
+    }
+
+    for(int i = 0; i < threadCount; i++){
+        pthread_join(tid[i], &res);
+    }
+
 
     // ***TO DO *** Process TOP 10 and display
+    quickSort(words, 0, numberOfEntries-1); 
+
+    printf("\n\nWord Frequency Count on %s with %d threads\n", path, threadCount);
+    printf("Printing top 10 words %d characters or more.\n", wordLength);
+    for(int i = 0; i < 10; i++){     
+        printf("Number %d is %s ", i+1 ,words[i].item);   
+        printf("with a count of %d\n", words[i].count);
+    }
 
     //**************************************************************
     // DO NOT CHANGE THIS BLOCK
@@ -171,6 +250,6 @@ int main (int argc, char *argv[])
 
     // ***TO DO *** cleanup
     free(buffer);
-
+    free(words);
     return 0;
     }
