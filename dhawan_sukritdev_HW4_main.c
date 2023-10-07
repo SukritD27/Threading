@@ -7,7 +7,10 @@
 *
 * File: dhawan_sukritdev_HW4_main.c
 *
-* Description:
+* Description: This file reads from a file given in the command line argument
+*              and goes through the file and checks the count of words with length
+*              6 or more and adds them into a custom data structure. This program 
+*              also implements multiple threads so that it becomes faster.
 *
 **************************************************************/
 
