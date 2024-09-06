@@ -1,19 +1,3 @@
-/**************************************************************
-* Class:  CSC-415-01 Spring 2023
-* Name: Sukrit Dev Dhawan
-* Student ID: 922432027
-* GitHub ID: SukritD27
-* Project: Assignment 4 – Word Blast
-*
-* File: dhawan_sukritdev_HW4_main.c
-*
-* Description: This file reads from a file given in the command line argument
-*              and goes through the file and checks the count of words with length
-*              6 or more and adds them into a custom data structure. This program 
-*              also implements multiple threads so that it becomes faster.
-*
-**************************************************************/
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
